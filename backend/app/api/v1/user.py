@@ -1,7 +1,9 @@
 import traceback
+from typing import Optional
 
 from fastapi import APIRouter, Depends
 
+from app.api.exception import CustomException
 from app.api.response import Response, response_docs
 from app.api.status import Status
 from app.business.user import (
@@ -14,10 +16,16 @@ from app.business.user import (
     UserTokenBiz,
 )
 from app.initializer import g
-from app.middleware.auth import JWTUser, get_current_user
+from app.middleware.auth import JWTUser, get_current_user, JWTBearer, JWTAuthorizationCredentials
 
 user_router = APIRouter()
 _active = True  # 激活状态
+
+# 定义一个强制认证的依赖
+async def require_auth(credentials: Optional[JWTAuthorizationCredentials] = Depends(JWTBearer(auto_error=True))):
+    if not credentials:
+        raise CustomException(msg="Not authenticated", status=Status.UNAUTHORIZED_ERROR)
+    return credentials.user
 
 
 # 注意：`user`仅为模块示例，请根据自身需求修改
@@ -34,7 +42,7 @@ _active = True  # 激活状态
 )
 async def detail(
         user_id: str,
-        current_user: JWTUser = Depends(get_current_user),  # 认证
+        current_user: JWTUser = Depends(require_auth), # 使用强制认证依赖
 ):
     try:
         user_biz = UserDetailBiz(id=user_id)
@@ -62,7 +70,7 @@ async def detail(
 async def lst(
         page: int = 1,
         size: int = 10,
-        current_user: JWTUser = Depends(get_current_user),
+        current_user: JWTUser = Depends(require_auth), # 使用强制认证依赖
 ):
     try:
         user_biz = UserListBiz(page=page, size=size)
@@ -71,70 +79,6 @@ async def lst(
         g.logger.error(traceback.format_exc())
         return Response.failure(msg="userList失败", error=e)
     return Response.success(data={"items": data, "total": total})
-
-
-@user_router.post(
-    path="/user",
-    summary="userCreate",
-    responses=response_docs(data={
-        "id": "str",
-    }),
-)
-async def create(
-        user_biz: UserCreateBiz,
-):
-    try:
-        user_id = await user_biz.create()
-        if not user_id:
-            return Response.failure(msg="用户已存在", status=Status.RECORD_EXISTS_ERROR)
-    except Exception as e:
-        g.logger.error(traceback.format_exc())
-        return Response.failure(msg="userCreate失败", error=e)
-    return Response.success(data={"id": user_id})
-
-
-@user_router.put(
-    path="/user/{user_id}",
-    summary="userUpdate",
-    responses=response_docs(data={
-        "id": "str",
-    }),
-)
-async def update(
-        user_id: str,
-        user_biz: UserUpdateBiz,
-        current_user: JWTUser = Depends(get_current_user),
-):
-    try:
-        updated_ids = await user_biz.update(user_id)
-        if not updated_ids:
-            return Response.failure(msg="未匹配到记录", status=Status.RECORD_NOT_EXIST_ERROR)
-    except Exception as e:
-        g.logger.error(traceback.format_exc())
-        return Response.failure(msg="userUpdate失败", error=e)
-    return Response.success(data={"id": user_id})
-
-
-@user_router.delete(
-    path="/user/{user_id}",
-    summary="userDelete",
-    responses=response_docs(data={
-        "id": "str",
-    }),
-)
-async def delete(
-        user_id: str,
-        current_user: JWTUser = Depends(get_current_user),
-):
-    try:
-        user_biz = UserDeleteBiz()
-        deleted_ids = await user_biz.delete(user_id)
-        if not deleted_ids:
-            return Response.failure(msg="未匹配到记录", status=Status.RECORD_NOT_EXIST_ERROR)
-    except Exception as e:
-        g.logger.error(traceback.format_exc())
-        return Response.failure(msg="userDelete失败", error=e)
-    return Response.success(data={"id": user_id})
 
 
 @user_router.post(
@@ -158,6 +102,70 @@ async def login(
 
 
 @user_router.post(
+    path="/user",
+    summary="userCreate",
+    responses=response_docs(data={
+        "id": "str",
+    }),
+)
+async def create(
+        user_biz: UserCreateBiz,
+):
+    try:
+        user_id = await user_biz.create()
+        if not user_id:
+            return Response.failure(msg="手机号已存在", status=Status.RECORD_EXISTS_ERROR)
+    except Exception as e:
+        g.logger.error(traceback.format_exc())
+        return Response.failure(msg="userCreate失败", error=e)
+    return Response.success(data={"id": user_id})
+
+
+@user_router.put(
+    path="/user/{user_id}",
+    summary="userUpdate",
+    responses=response_docs(data={
+        "id": "str",
+    }),
+)
+async def update(
+        user_id: str,
+        user_biz: UserUpdateBiz,
+        current_user: JWTUser = Depends(require_auth), # 使用强制认证依赖
+):
+    try:
+        updated_ids = await user_biz.update(user_id)
+        if not updated_ids:
+            return Response.failure(msg="未匹配到记录", status=Status.RECORD_NOT_EXIST_ERROR)
+    except Exception as e:
+        g.logger.error(traceback.format_exc())
+        return Response.failure(msg="userUpdate失败", error=e)
+    return Response.success(data={"id": user_id})
+
+
+@user_router.delete(
+    path="/user/{user_id}",
+    summary="userDelete",
+    responses=response_docs(data={
+        "id": "str",
+    }),
+)
+async def delete(
+        user_id: str,
+        current_user: JWTUser = Depends(require_auth), # 使用强制认证依赖
+):
+    try:
+        user_biz = UserDeleteBiz()
+        deleted_ids = await user_biz.delete(user_id)
+        if not deleted_ids:
+            return Response.failure(msg="未匹配到记录", status=Status.RECORD_NOT_EXIST_ERROR)
+    except Exception as e:
+        g.logger.error(traceback.format_exc())
+        return Response.failure(msg="userDelete失败", error=e)
+    return Response.success(data={"id": user_id})
+
+
+@user_router.post(
     path="/user/token",
     summary="userToken",
     responses=response_docs(data={
@@ -166,7 +174,7 @@ async def login(
 )
 async def token(
         user_biz: UserTokenBiz,
-        current_user: JWTUser = Depends(get_current_user),
+        current_user: JWTUser = Depends(require_auth), # 使用强制认证依赖
 ):
     try:
         data = await user_biz.token()

@@ -1,6 +1,7 @@
 import traceback
-
-from fastapi import APIRouter, Depends
+import os
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi.responses import JSONResponse
 
 from app.api.response import Response, response_docs
 from app.api.status import Status
@@ -15,6 +16,22 @@ from app.initializer import g
 from app.middleware.auth import JWTUser, get_current_user
 
 monitor_router = APIRouter()
+
+# 音频文件保存目录
+AUDIO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "static", "audio")
+os.makedirs(AUDIO_DIR, exist_ok=True)
+
+# 允许的音频文件类型
+ALLOWED_AUDIO_TYPES = {
+    "audio/mpeg": ".mp3",
+    "audio/wav": ".wav",
+    "audio/x-wav": ".wav",
+    "audio/mp4": ".m4a",
+    "audio/aac": ".aac",
+}
+
+# 最大文件大小（10MB）
+MAX_FILE_SIZE = 10 * 1024 * 1024
 
 
 @monitor_router.get(
@@ -125,4 +142,45 @@ async def delete(
     except Exception as e:
         g.logger.error(traceback.format_exc())
         return Response.failure(msg="monitorDelete失败", error=e)
-    return Response.success(data={"id": monitor_id}) 
+    return Response.success(data={"id": monitor_id})
+
+
+@monitor_router.post("/monitor/upload-audio", summary="上传音频文件")
+async def upload_audio(
+    file: UploadFile = File(...),
+    current_user: JWTUser = Depends(get_current_user)
+):
+    """
+    上传音频文件
+    - 支持的文件类型：mp3, wav, m4a, aac
+    - 返回：音频文件的相对路径，用于创建 monitor 时使用
+    """
+    try:
+        # 检查文件类型
+        if file.content_type not in ALLOWED_AUDIO_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"不支持的文件类型。支持的类型：{', '.join(ALLOWED_AUDIO_TYPES.keys())}"
+            )
+
+        # 读取文件内容
+        content = await file.read()
+
+        # 生成安全的文件名
+        ext = ALLOWED_AUDIO_TYPES[file.content_type]
+        safe_filename = f"{g.snow_cli.gen_uid()}{ext}"
+        save_path = os.path.join(AUDIO_DIR, safe_filename)
+
+        # 保存文件
+        with open(save_path, "wb") as f:
+            f.write(content)
+
+        # 返回相对路径
+        rel_path = f"static/audio/{safe_filename}"
+        return Response.success(data={"audio_path": rel_path})
+
+    except HTTPException as e:
+        return Response.failure(msg=str(e.detail), status=e.status_code)
+    except Exception as e:
+        g.logger.error(traceback.format_exc())
+        return Response.failure(msg="音频上传失败", error=e) 

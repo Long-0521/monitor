@@ -13,3 +13,5 @@ redis_max_connections:
 # MySQL数据库配置
 db_url: mysql+pymysql://root:root@localhost:3306/dbname
 db_async_url: mysql+aiomysql://root:root@localhost:3306/dbname
+# SnowFlake配置
+snow_datacenter_id: 1

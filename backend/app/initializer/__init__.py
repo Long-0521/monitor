@@ -101,7 +101,7 @@ class G(metaclass=Singleton):
         cls._get_logger()
         cls._get_redis_cli()
         cls._get_snow_cli()
-        cls._get_db_session()
+        # cls._get_db_session()
         cls._get_db_async_session()
 
 

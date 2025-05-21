@@ -9,15 +9,21 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 
 from app import (
     router,
     middleware,
 )
 from app.initializer import g
+
+# 确保在所有导入之前初始化
+g.setup()
+
+# 在初始化之后导入其他模块
 from app.api.v1 import ws
 
-g.setup()
 # #
 openapi_url = "/openapi.json"
 docs_url = "/docs"
@@ -50,11 +56,17 @@ app = FastAPI(
 # 配置CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 在生产环境中应该设置具体的源
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # 允许前端开发服务器的请求
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # 允许所有 HTTP 方法
+    allow_headers=["*"],  # 允许所有请求头
+    expose_headers=["*"],  # 允许前端访问所有响应头
 )
+
+# 挂载静态文件目录
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+os.makedirs(static_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # #
 router.register_routers(app)

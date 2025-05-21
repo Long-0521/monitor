@@ -25,30 +25,52 @@ class JWTAuthorizationCredentials(HTTPAuthorizationCredentials):
 
 
 class JWTBearer(HTTPBearer):
+    def __init__(self, auto_error: bool = False):
+        super().__init__(auto_error=auto_error)
 
     async def __call__(
             self, request: Request
     ) -> Optional[JWTAuthorizationCredentials]:
+        # 检查是否是登录或注册接口
+        if request.url.path in ["/api/v1/user/login", "/api/v1/user"] and request.method == "POST":
+            return None
+            
         authorization = request.headers.get("Authorization")
-        scheme, credentials = get_authorization_scheme_param(authorization)
-        if not (authorization and scheme and credentials):
+        if not authorization:
             if self.auto_error:
                 raise CustomException(
                     msg="Not authenticated",
                     status=Status.UNAUTHORIZED_ERROR,
                 )
-            else:
-                return None
+            return None
+            
+        scheme, credentials = get_authorization_scheme_param(authorization)
+        if not (scheme and credentials):
+            if self.auto_error:
+                raise CustomException(
+                    msg="Invalid authentication credentials",
+                    status=Status.UNAUTHORIZED_ERROR,
+                )
+            return None
+            
         if scheme.lower() != "bearer":
             if self.auto_error:
                 raise CustomException(
                     msg="Invalid authentication credentials",
                     status=Status.UNAUTHORIZED_ERROR,
                 )
-            else:
-                return None
-        user = await self.verify_credentials(credentials)
-        return JWTAuthorizationCredentials(scheme=scheme, credentials=credentials, user=user)
+            return None
+            
+        try:
+            user = await self.verify_credentials(credentials)
+            return JWTAuthorizationCredentials(scheme=scheme, credentials=credentials, user=user)
+        except Exception as e:
+            if self.auto_error:
+                raise CustomException(
+                    msg=str(e),
+                    status=Status.UNAUTHORIZED_ERROR,
+                )
+            return None
 
     async def verify_credentials(self, credentials: str) -> JWTUser:
         playload = await self._verify_jwt(credentials)
@@ -80,8 +102,8 @@ class JWTBearer(HTTPBearer):
 
 
 def get_current_user(
-        credentials: Optional[JWTAuthorizationCredentials] = Depends(JWTBearer(auto_error=True))
-) -> JWTUser:
+        credentials: Optional[JWTAuthorizationCredentials] = Depends(JWTBearer(auto_error=False))
+) -> Optional[JWTUser]:
     if not credentials:
-        return JWTUser()
+        return None
     return credentials.user
