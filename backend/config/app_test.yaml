@@ -1,0 +1,14 @@
+# 请根据自身需求修改
+appname: DbyApp-test
+appversion: 1.0.0
+debug: true
+log_dir: ./log
+is_disable_docs: false
+# #
+redis_host:
+redis_port:
+redis_db:
+redis_password:
+redis_max_connections:
+db_url: sqlite:///app_test.sqlite
+db_async_url: sqlite+aiosqlite:///app_test.sqlite

@@ -1,0 +1,15 @@
+# 请根据自身需求修改
+appname: DbyApp-dev
+appversion: 1.0.0
+debug: true
+log_dir: ./log
+is_disable_docs: false
+# #
+redis_host:
+redis_port:
+redis_db:
+redis_password:
+redis_max_connections:
+# MySQL数据库配置
+db_url: mysql+pymysql://root:root@localhost:3306/dbname
+db_async_url: mysql+aiomysql://root:root@localhost:3306/dbname
